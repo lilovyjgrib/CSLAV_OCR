@@ -115,7 +115,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         return symbols
 
     def get_edges(boxes, threshn): #оч тупая функция для поиска строк по списку ограничивающих прямоугольников
-        #аргументы - boxes (можно получить функцией get_boxes) и порог (на сколько максимум могут отличаться x-координаты контуров в одной строке)
+        #аргументы - boxes (можно получить функцией get_boxes) и порог (на сколько максимум могут отличаться у-координаты контуров в одной строке)
         boxes.sort(key=lambda box: box[1])
         new_list = []
         for el in boxes:

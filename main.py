@@ -65,8 +65,6 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         img_no_kinovar = kinovar2black(img_ex)
         #cv2.imwrite('img_no_kinovar.png', img_no_kinovar)
         img_gray = cv2.cvtColor(img_no_kinovar, cv2.COLOR_BGR2GRAY)
-        #se = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        #img_bg = cv2.morphologyEx(img_gray, cv2.MORPH_DILATE, se)
         img_binary = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         img_erode = cv2.erode(img_binary, numpy.ones((3, 3), numpy.uint8), iterations=1)
         return img_erode

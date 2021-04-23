@@ -11,8 +11,10 @@ class Symbol:
 
     def __init__(self, matrix, rectangle, model, predictions_list):
         #для создания объекта требуется
-        #матрица (считанное изображение символа)
-        #и ограничивающий прямоугольник (список из 2 координат верхней левой точки, ширины и высоты)
+        # матрица (считанное изображение символа)
+        # ограничивающий прямоугольник (список из 2 координат верхней левой точки, ширины и высоты)
+        # нейросеть
+        # список предсказаний (получается в функции decode_predictions)
         cv2.imwrite('symbol.png', matrix)
         image = keras.preprocessing.image.load_img('symbol.png', target_size=(56, 56, 3))
         input_arr = keras.preprocessing.image.img_to_array(image)
@@ -30,6 +32,7 @@ class Symbol:
 
 
 def get_text(filename, prediction_file, model_name): #пока сборная функция для всего, мб потом расформируем
+    #filename - имя картинки, prediction_file - соответствия предсказаний и символов (лежит на гитхабе - predictions.txt), model_name - обученная модель (тоже есть на гитхабе - machine.h5)
 
     def decode_predictions(prediction_file): #из файла получает предсказания сети для каждого типа символа, нужно для формирования текста
         with open(prediction_file, 'r', encoding='utf-8') as f_predictions:
@@ -39,7 +42,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
             predictions_list[i] = predictions_list[i].split('\t')
         return predictions_list
 
-    def kinovar2black(img): #киноварь в черный; неплохо бы оптимизировать
+    def kinovar2black(img): #киноварь в черный (на вход и выход - матрица); неплохо бы оптимизировать
         h = img.shape[0]
         w = img.shape[1]
         img = img.reshape(h * w, 3)
@@ -55,7 +58,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         img = img.reshape(h, w, 3)
         return img
 
-    def prepare_img(filename): #предобработка картинки
+    def prepare_img(filename): #предобработка картинки, на вход название файла, на выход матрица
         img = cv2.imread(filename)
         se = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         img_ex = cv2.morphologyEx(img, cv2.MORPH_DILATE, se)
@@ -68,7 +71,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         img_erode = cv2.erode(img_binary, numpy.ones((3, 3), numpy.uint8), iterations=1)
         return img_erode
 
-    def get_boxes(filename, min_h, max_h=700, max_w=400): #поиск контуров на картинке, в аргументах допустимые размеры контура
+    def get_boxes(filename, min_h, max_h=700, max_w=400): #поиск контуров на картинке, в аргументах название файла и допустимые размеры контура
         img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         img_contours = cv2.imread(filename)
         img_prepared = prepare_img(filename)
@@ -82,6 +85,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         return boxes
 
     def get_symbols(filename, prediction_file, model_name, min_h, max_h=700, max_w=400): #получение списка символов
+        #аргументы примерно как в функции get_text
         #создаются объекты класса Symbol, т е про них известны координаты контуров и предсказанный символ
         model = keras.models.load_model(model_name)
         predictions_list = decode_predictions(prediction_file)
@@ -111,6 +115,7 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         return symbols
 
     def get_edges(boxes, threshn): #оч тупая функция для поиска строк по списку ограничивающих прямоугольников
+        #аргументы - boxes (можно получить функцией get_boxes) и порог (на сколько максимум могут отличаться x-координаты контуров в одной строке)
         boxes.sort(key=lambda box: box[1])
         new_list = []
         for el in boxes:
@@ -141,7 +146,9 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         #cv2.imwrite('img_edges.png', img_for_rows)
         return edges
 
-    def symbols_to_rows(symbols_list, edges): #распределение списка символов по строкам (получается отсортированный список списков)
+    def symbols_to_rows(symbols_list, edges): #распределение списка символов по строкам
+        #на вход список символов (получается функцией get_symbols) и список границ (получается функцией
+        #на выход список строк (списков символов), отсортированных от верхней к нижней, порядок символов внутри строки - от правого к левому
         symbols_list.sort(key=lambda symbol: symbol.coordinates[1], reverse=True)
         rows = []
         for i in range(len(edges)):
@@ -174,7 +181,8 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
         #cv2.imwrite('img_rows.png', img_for_rows)
         return rows
 
-    def get_raw_str(row, space): #собирает текст по строкам
+    def get_raw_str(row, space): #собирает текст по строке
+        #row это строка (строки создает функция get_rows), space это размер пробела (пока работает довольно посредственно)
         raw_str = ''
         for idx in range(len(row)):
             if idx > 0 and row[idx].coordinates[0] - row[idx - 1].coordinates[2] > space:
@@ -182,18 +190,21 @@ def get_text(filename, prediction_file, model_name): #пока сборная ф
             raw_str += row[idx].text
         return raw_str
 
-    symbols = get_symbols(filename, prediction_file, model_name,  min_h=15)
-    boxes = get_boxes(filename, min_h=50)
-    edges = get_edges(boxes, 70)
-    rows = symbols_to_rows(symbols, edges)
+    #что в итоге делаем
+    symbols = get_symbols(filename, prediction_file, model_name,  min_h=15) #делаем список символов
+    boxes = get_boxes(filename, min_h=50) #это для распределения по строкам
+    edges = get_edges(boxes, 70) #находим примерные границы строк
+    rows = symbols_to_rows(symbols, edges) #распределяем найденные символы по строкам
+    #пишем текст
     text = ''
     for row in rows:
         text += get_raw_str(row, 50) + '\n'
+    #ура!
     return text
 
 
 def main():
-    fname = input()
+    fname = input('Введите имя файла: ')
     with open('result.txt', 'w', encoding='utf-8') as f:
         f.write(get_text(fname, 'predictions.txt', 'machine.h5'))
 

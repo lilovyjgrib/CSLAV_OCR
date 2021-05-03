@@ -31,7 +31,7 @@ class Symbol:
         self.coordinates = rectangle[0], rectangle[1], rectangle[0] + rectangle[2], rectangle[1] + rectangle[3]
 
 
-def load_page_from_pdf(pdffile, page_number, zoom=4.201): #загрузка страницы из пдф в файл пнг
+def load_page_from_pdf(pdffile, page_number, zoom=4.166): #загрузка страницы из пдф в файл пнг
     #pdffile - имя файла, page_number - номер страницы по файлу в читалке - 1
     #zoom я подобрал вроде бы близко но не разобрался надо ли коррректировать параметры или нет, можете почекатб
     doc = fitz.open(pdffile)

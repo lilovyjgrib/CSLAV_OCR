@@ -1,16 +1,14 @@
-!apt install ghostscript imagemagick
-!python3 -m pip install wand
-!wget #тут ссылка на файл
-!sed -i "s/rights=\"none\"/rights=\"read|write\"/g"  /etc/ImageMagick-6/policy.xml
-fname = #название файла
-
-from wand.image import Image
-pdf=Image(filename=fname,
-          resolution=300) #превращаем пдф в картинку, разрешение 300
-pdfImage=pdf.convert('jpeg') #делаем джпег
-i=1
-for img in pdfImage.sequence: # для страницы в последовательности страниц, созданных нами ранее
-    page = Image(image=img)
-    page.save(filename=str(i)+'.jpg')
+import fitz #(нужно PyMuPDF установить предварительно)
+pdffile = "evangelie1606.pdf"
+doc = fitz.open(pdffile)
+n=doc.page_count
+i=0
+while i<n:
+    page = doc.load_page(i)
+    zoom = 4  # zoom factor, можно менять в настройках, смотря какое качество нам нужно, 4 уже оч хорошее,но работает долго
+    mat = fitz.Matrix(zoom, zoom)
+    pix = page.getPixmap(matrix=mat)
+    output = str(i+1)+'superhigh'+".png"
+    print(output)
+    pix.writeImage(output)
     i+=1
-        #код написан под использование в коллабе, по идее сохраняет пдф в картинках (постранично)

@@ -1,5 +1,5 @@
 #крч есть +- документация, вот
-
+#всякие импорты
 import os, numpy, cv2, fitz
 from tensorflow import keras
 
@@ -33,27 +33,26 @@ class Symbol:
 
 def load_page_from_pdf(pdffile, page_number, zoom=4.166): #загрузка страницы из пдф в файл пнг
     #pdffile - имя файла, page_number - номер страницы по файлу в читалке - 1
-    #zoom я подобрал вроде бы близко но не разобрался надо ли коррректировать параметры или нет, можете почекатб
     doc = fitz.open(pdffile)
     page = doc.load_page(page_number)
     mat = fitz.Matrix(zoom, zoom)
     pix = page.getPixmap(matrix=mat)
-    output_fname = str(page_number)+'.png'
+    output_fname = 'results\\'+pdffile+'\\page'+str(page_number)+'\\'+'page.png'
     pix.writeImage(output_fname)
-    print('Страница сохранена в файл '+output_fname)
-    return output_fname
+    print('Страница сохранена в файл page.png')
+    return 'page.png'
 
 
-def get_text(filename, prediction_file, model_name, save_interim_results=False): #пока сборная функция для всего, мб потом расформируем
-    #filename - имя картинки, prediction_file - соответствия предсказаний и символов (лежит на гитхабе - predictions.txt), model_name - обученная модель (тоже есть на гитхабе - machine.h5)
+def decode_predictions(prediction_file): #из файла получает предсказания сети для каждого типа символа, нужно для формирования текста
+    with open(prediction_file, 'r', encoding='utf-8') as f_predictions:
+        predictions = f_predictions.read()
+    predictions_list = predictions.split('\n\n')
+    for i in range(len(predictions_list)):
+        predictions_list[i] = predictions_list[i].split('\t')
+    return predictions_list
 
-    def decode_predictions(prediction_file): #из файла получает предсказания сети для каждого типа символа, нужно для формирования текста
-        with open(prediction_file, 'r', encoding='utf-8') as f_predictions:
-            predictions = f_predictions.read()
-        predictions_list = predictions.split('\n\n')
-        for i in range(len(predictions_list)):
-            predictions_list[i] = predictions_list[i].split('\t')
-        return predictions_list
+def get_text(filename, model, predictions_list, save_interim_results=False): #пока сборная функция для получения текста
+    #filename - имя картинки, predictions_list - соответствия предсказаний и символов, model - модель
 
     def kinovar2black(img): #киноварь в черный (на вход и выход - матрица); неплохо бы оптимизировать
         h = img.shape[0]
@@ -100,15 +99,13 @@ def get_text(filename, prediction_file, model_name, save_interim_results=False):
         #возвращает список граничных прямоугольников (2 координаты верхней левой точки, ширина и высота)
         return boxes
 
-    def get_symbols(filename, prediction_file, model_name, min_h, max_h=700, max_w=400, save_interim_results=False): #получение списка символов
+    def get_symbols(filename, model, predictions_list, min_h, max_h=700, max_w=400, save_interim_results=False): #получение списка символов
         #аргументы примерно как в функции get_text
         #создаются объекты класса Symbol, т е про них известны координаты контуров и предсказанный символ
-        model = keras.models.load_model(model_name)
-        predictions_list = decode_predictions(prediction_file)
         img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         if save_interim_results:
             img_contours = cv2.imread(filename)
-        boxes = get_boxes(filename, save_interim_results, min_h, max_h, max_w)
+        boxes = get_boxes(filename, min_h, save_interim_results, max_h, max_w)
         symbols = []
         for box in boxes:
             (x, y, w, h) = box
@@ -213,7 +210,7 @@ def get_text(filename, prediction_file, model_name, save_interim_results=False):
         return raw_str
 
     #что в итоге делаем
-    symbols = get_symbols(filename, prediction_file, model_name,  min_h=15, save_interim_results=save_interim_results) #делаем список символов
+    symbols = get_symbols(filename, model, predictions_list, min_h=15, save_interim_results=save_interim_results) #делаем список символов
     boxes = get_boxes(filename, min_h=50) #это для распределения по строкам
     edges = get_edges(boxes, 70) #находим примерные границы строк
     rows = symbols_to_rows(symbols, edges, save_interim_results=save_interim_results) #распределяем найденные символы по строкам
@@ -225,14 +222,20 @@ def get_text(filename, prediction_file, model_name, save_interim_results=False):
     return text
 
 
-def main():
+def main(model_name, predictions_file): #нужны файл с обученной моделью и файл с соответствиями предсказаний и символов
     pdffile = input('Введите имя пдф-файла: ')
     page_number = int(input('Введите номер страницы: '))
+    result_dir = 'results\\'+pdffile+'\\page'+str(page_number)
+    os.makedirs(result_dir, exist_ok=True)
+    print('Результаты будут сохранены в папке '+result_dir)
     fname = load_page_from_pdf(pdffile, page_number)
-    save_interim_results = int(input('Сохранить промежуточные результаты?\n'))
-    result_file = 'page'+str(page_number)+'_text.txt'
+    model = keras.models.load_model(model_name)
+    predictions_list = decode_predictions(predictions_file)
+    os.chdir(result_dir)
+    save_interim_results = int(input('Сохранить промежуточные результаты? 1 - да, 0 - нет  '))
+    result_file = 'text.txt'
     with open(result_file, 'w', encoding='utf-8') as f:
-        f.write(get_text(fname, 'predictions.txt', 'machine.h5', save_interim_results=save_interim_results))
+        f.write(get_text(fname, model, predictions_list, save_interim_results=save_interim_results))
     print('Распознанный текст в файле '+result_file)
 
-main()
+main('machine.h5', 'predictions.txt')

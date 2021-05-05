@@ -27,7 +27,6 @@ class Symbol:
         else:
             self.text = ''
         os.remove('symbol.png')
-
         self.coordinates = rectangle[0], rectangle[1], rectangle[0] + rectangle[2], rectangle[1] + rectangle[3]
 
 

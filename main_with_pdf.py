@@ -1,6 +1,6 @@
 #крч есть +- документация, вот
 #всякие импорты
-import os, numpy, cv2, fitz
+import os, collections, numpy, cv2, fitz
 from tensorflow import keras
 
 class Symbol:
@@ -85,26 +85,27 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
             print('Изображение после предобработки в файле img_binary.png')
         return img_erode
 
-    def get_boxes(filename, min_h, save_interim_results=False, max_h=700, max_w=400): #поиск контуров на картинке, в аргументах название файла и допустимые размеры контура
-        img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-        img_contours = cv2.imread(filename)
-        img_prepared = prepare_img(filename, save_interim_results=save_interim_results)
+    def get_boxes(img_prepared, min_h, save_interim_results=False, max_h=700, max_w=400): #поиск контуров на картинке, в аргументах обработанная картинка и допустимые размеры контура
         boxes = []
         contours, hierarchy = cv2.findContours(img_prepared, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        hierarchy_counter = collections.Counter()
+        for el in hierarchy[0]:
+            hierarchy_counter[el[3]] += 1
+        h_mark = hierarchy_counter.most_common(1)[0][0]
         for idx, contour in enumerate(contours):
             (x, y, w, h) = cv2.boundingRect(contour)
-            if hierarchy[0][idx][3] == 0 and min_h < h < max_h and w < max_w:
+            if hierarchy[0][idx][3] == h_mark and min_h < h < max_h and w < max_w:
                 boxes.append([x, y, w, h])
         #возвращает список граничных прямоугольников (2 координаты верхней левой точки, ширина и высота)
         return boxes
 
-    def get_symbols(filename, model, predictions_list, min_h, max_h=700, max_w=400, save_interim_results=False): #получение списка символов
-        #аргументы примерно как в функции get_text
+    def get_symbols(img_prepared, model, predictions_list, min_h, max_h=700, max_w=400, save_interim_results=False): #получение списка символов
+        #аргументы примерно как в функции get_text, нужна обработанная картинка
         #создаются объекты класса Symbol, т е про них известны координаты контуров и предсказанный символ
         img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
         if save_interim_results:
             img_contours = cv2.imread(filename)
-        boxes = get_boxes(filename, min_h, save_interim_results, max_h, max_w)
+        boxes = get_boxes(img_prepared, min_h, save_interim_results, max_h, max_w)
         symbols = []
         for box in boxes:
             (x, y, w, h) = box
@@ -163,7 +164,7 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
         return edges
 
     def symbols_to_rows(symbols_list, edges, save_interim_results=False): #распределение списка символов по строкам
-        #на вход список символов (получается функцией get_symbols) и список границ (получается функцией
+        #на вход список символов (получается функцией get_symbols) и список границ (получается функцией get_edges)
         #на выход список строк (списков символов), отсортированных от верхней к нижней, порядок символов внутри строки - слева направо
         symbols_list.sort(key=lambda symbol: symbol.coordinates[1], reverse=True)
         rows = []
@@ -200,7 +201,7 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
         return rows
 
     def get_raw_str(row, space): #собирает текст по строке
-        #row это строка (строки создает функция get_rows), space это размер пробела (пока работает довольно посредственно)
+        #row это строка (строки создает функция get_rows), space это размер пробела
         raw_str = ''
         for idx in range(len(row)):
             if idx > 0 and row[idx].coordinates[0] - row[idx - 1].coordinates[2] > space:
@@ -209,8 +210,9 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
         return raw_str
 
     #что в итоге делаем
-    symbols = get_symbols(filename, model, predictions_list, min_h=15, save_interim_results=save_interim_results) #делаем список символов
-    boxes = get_boxes(filename, min_h=50) #это для распределения по строкам
+    img_prepared = prepare_img(filename, save_interim_results)
+    symbols = get_symbols(img_prepared, model, predictions_list, min_h=15, save_interim_results=save_interim_results) #делаем список символов
+    boxes = get_boxes(img_prepared, min_h=50) #это для распределения по строкам
     edges = get_edges(boxes, 70) #находим примерные границы строк
     rows = symbols_to_rows(symbols, edges, save_interim_results=save_interim_results) #распределяем найденные символы по строкам
     #пишем текст

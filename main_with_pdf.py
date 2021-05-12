@@ -180,11 +180,27 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
             else:
                 rows[i].append(symbol)
         rows.reverse()
-        for idx in range(len(rows)):
-            rows[idx].sort(key=lambda symbol: symbol.coordinates[0])
+        diacs = '҆,́̾҇҃ⷮ.ѣⷣ'
+        final_rows = []
+        m = True
+        for row in rows:
+            if row == []:
+                continue
+            if m:
+                final_rows.append([])
+            for symbol in row:
+                final_rows[-1].append(symbol)
+            for symbol in row:
+                if symbol.text not in diacs:
+                    m = True
+                    break
+            else:
+                m = False
+        for idx in range(len(final_rows)):
+            final_rows[idx].sort(key=lambda symbol: symbol.coordinates[0])
         if save_interim_results:
             img_for_rows = cv2.imread(filename)
-            for row in rows:
+            for row in final_rows:
                 x1, y1, x2, y2 = img_for_rows.shape[1], img_for_rows.shape[0], 0, 0
                 for symbol in row:
                     if symbol.coordinates[0] < x1:
@@ -198,7 +214,7 @@ def get_text(filename, model, predictions_list, save_interim_results=False): #п
                 cv2.rectangle(img_for_rows, (x1, y1), (x2, y2), (30, 30, 30), 5)
             cv2.imwrite('img_rows.png', img_for_rows)
             print('Границы строк в файле img_rows.png')
-        return rows
+        return final_rows
 
     def get_raw_str(row, space): #собирает текст по строке
         #row это строка (строки создает функция get_rows), space это размер пробела
